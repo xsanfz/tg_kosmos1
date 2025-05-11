@@ -44,3 +44,4 @@ def download_image(image_url: str, save_path: str) -> bool:
 def get_nasa_api_key() -> str | None:
     load_dotenv()
     return os.getenv('NASA_API_KEY')
+    
