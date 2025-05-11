@@ -50,26 +50,26 @@ python fetch_spacex_images.py
 
 bash
 ```python
-'''python fetch_nasa_epic.py
+python fetch_nasa_epic.py
 ```
 3. Фото NASA APOD (астрономическое фото дня):
 
 bash
 ```python
-'''python fetch_nasa_apod.py --count 10
+python fetch_nasa_apod.py --count 10
 ```
 ### Публикация фотографий
 1. Одно фото (случайное или указанное):
 bash
 ```python
-'''python publish_photo.py  # случайное
+python publish_photo.py  # случайное
 python publish_photo.py --photo apod_20230101.jpg  # конкретное
 ```
 2. Автоматическая публикация (в бесконечном цикле):
 
 bash
 ```python
-'''python publish_loop.py --interval 4  # публикация каждые 4 часа
+python publish_loop.py --interval 4  # публикация каждые 4 часа
 ```
 ## Цель проекта
 Код написан в образовательных целях на онлайн-курсе для веб-разработчиков dvmn.org. Проект демонстрирует работу с:
