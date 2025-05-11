@@ -11,7 +11,8 @@
 
 * Создайте файл .env в корне проекта и добавьте строку:
 
-``` NASA_API_KEY=ваш_ключ_от_nasa
+```python
+NASA_API_KEY=ваш_ключ_от_nasa
 ```
 2. Telegram Bot:
 
