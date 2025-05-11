@@ -22,7 +22,8 @@ NASA_API_KEY=ваш_ключ_от_nasa
 
 * Добавьте в .env:
 
-'''TELEGRAM_TOKEN=ваш_токен_бота
+```python
+TELEGRAM_TOKEN=ваш_токен_бота
 TELEGRAM_CHANNEL=@ваш_канал
 '''
 * Убедитесь, что бот добавлен как администратор в ваш канал
@@ -32,7 +33,8 @@ TELEGRAM_CHANNEL=@ваш_канал
    
 Python3 должен быть уже установлен. Затем используйте pip (или pip3, если есть конфликт с Python2) для установки зависимостей:
 bash
-'''pip install -r requirements.txt
+```python
+pip install -r requirements.txt
 '''
 
 ## Как использовать
@@ -41,27 +43,32 @@ bash
 1. Фото SpaceX (последний запуск):
 
 bash
-'''python fetch_spacex_images.py
+```python
+python fetch_spacex_images.py
 '''
 2. Фото NASA EPIC (снимки Земли):
 
 bash
+```python
 '''python fetch_nasa_epic.py
 '''
 3. Фото NASA APOD (астрономическое фото дня):
 
 bash
+```python
 '''python fetch_nasa_apod.py --count 10
 '''
 ### Публикация фотографий
 1. Одно фото (случайное или указанное):
 bash
+```python
 '''python publish_photo.py  # случайное
 python publish_photo.py --photo apod_20230101.jpg  # конкретное
 '''
 2. Автоматическая публикация (в бесконечном цикле):
 
 bash
+```python
 '''python publish_loop.py --interval 4  # публикация каждые 4 часа
 '''
 ## Цель проекта
