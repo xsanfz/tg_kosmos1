@@ -1,11 +1,11 @@
 import os
+import shutil
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
-import shutil
 
 import requests
-from requests.exceptions import RequestException, Timeout, HTTPError
 from dotenv import load_dotenv
+from requests.exceptions import Timeout, HTTPError
 
 
 def get_file_extension_from_url(url: str) -> str:
@@ -25,20 +25,21 @@ def download_image(image_url: str, save_path: str) -> bool:
 
         with open(save_path, 'wb') as f:
             shutil.copyfileobj(response.raw, f)
-        return True
 
     except Timeout:
         print(f"Timeout error while downloading {image_url}")
+        return False
     except HTTPError as e:
-        print(f"HTTP error (status {e.response.status_code}) for {image_url}: {e}")
-    except RequestException as e:
-        print(f"Network-related error while downloading {image_url}: {e}")
+        print(f"HTTP error (status {e.response.status_code}) for {image_url}")
+        return False
+    except requests.RequestException as e:
+        print(f"Network error while downloading {image_url}: {str(e)}")
+        return False
     except OSError as e:
-        print(f"File system error while saving {save_path}: {e}")
-    except Exception as e:
-        print(f"Unexpected error while downloading {image_url}: {e}")
+        print(f"File system error while saving {save_path}: {str(e)}")
+        return False
 
-    return False
+    return True
 
 
 def get_nasa_api_key() -> str | None:

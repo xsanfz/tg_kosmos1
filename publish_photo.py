@@ -1,39 +1,27 @@
 import argparse
+import asyncio
+import os
 import random
 from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
 from telegram import Bot
-from telegram.error import TelegramError
+
+from telegram_tools import get_telegram_config, publish_photo
 
 
-def get_telegram_token() -> Optional[str]:
-    load_dotenv()
-    return os.getenv('TELEGRAM_TOKEN')
+def find_image(directory: Path, photo_name: Optional[str] = None) -> Optional[Path]:
+    if photo_name:
+        image_path = directory / photo_name
+        return image_path if image_path.exists() else None
 
-
-def get_telegram_channel() -> Optional[str]:
-    load_dotenv()
-    return os.getenv('TELEGRAM_CHANNEL')
-
-
-def get_random_image(directory: Path) -> Optional[Path]:
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif']
-    images = [f for f in directory.iterdir()
-              if f.is_file() and f.suffix.lower() in image_extensions]
+    images = [
+        f for f in directory.iterdir()
+        if f.is_file() and f.suffix.lower() in image_extensions
+    ]
     return random.choice(images) if images else None
-
-
-async def publish_single_photo(bot: Bot, channel: str, photo_path: Path) -> bool:
-    try:
-        with open(photo_path, 'rb') as photo:
-            await bot.send_photo(chat_id=channel, photo=photo)
-        print(f"Опубликовано: {photo_path.name}")
-        return True
-    except TelegramError as e:
-        print(f"Ошибка при публикации: {str(e)}")
-        return False
 
 
 async def main_async():
@@ -53,31 +41,32 @@ async def main_async():
     )
     args = parser.parse_args()
 
-    telegram_token = get_telegram_token()
-    telegram_channel = get_telegram_channel()
-
+    telegram_token, telegram_channel = get_telegram_config()
     if not telegram_token or not telegram_channel:
-        print("Ошибка: Необходимо указать TELEGRAM_TOKEN и TELEGRAM_CHANNEL в .env файле")
-        return
+        raise ValueError("Необходимо указать TELEGRAM_TOKEN и TELEGRAM_CHANNEL в .env файле")
+
+    directory = Path(args.directory)
+    photo_path = find_image(directory, args.photo)
+    if not photo_path:
+        raise FileNotFoundError(f"Изображение не найдено в директории {directory}")
 
     bot = Bot(token=telegram_token)
-    directory = Path(args.directory)
-
-    if args.photo:
-        photo_path = directory / args.photo
-    else:
-        photo_path = get_random_image(directory)
-
-    if not photo_path or not photo_path.exists():
-        print("Фото не найдено")
-        return
-
-    await publish_single_photo(bot, telegram_channel, photo_path)
+    success = await publish_photo(bot, telegram_channel, photo_path)
+    if success:
+        print(f"Успешно опубликовано: {photo_path.name}")
 
 
 def main():
-    import asyncio
-    asyncio.run(main_async())
+    load_dotenv()
+
+    try:
+        asyncio.run(main_async())
+    except ValueError as e:
+        print(f"Ошибка конфигурации: {str(e)}")
+    except FileNotFoundError as e:
+        print(f"Ошибка поиска изображения: {str(e)}")
+    except Exception as e:
+        print(f"Неожиданная ошибка: {str(e)}")
 
 
 if __name__ == "__main__":

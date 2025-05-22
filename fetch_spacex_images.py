@@ -1,76 +1,100 @@
 import argparse
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import List
+from urllib.parse import urlparse
 
 import requests
-from requests.exceptions import RequestException, HTTPError, Timeout
-
-from space_utils import download_image, get_file_extension_from_url
+from requests.exceptions import RequestException
 
 
-def get_spacex_launch_images(launch_id: Optional[str] = None) -> List[str]:
-    base_url = 'https://api.spacexdata.com/v4/launches/'
-    url = f'{base_url}latest' if launch_id is None else f'{base_url}{launch_id}'
+def fetch_spacex_launch_image_urls(launch_id: str = 'latest') -> List[str]:
+    api_base_url = 'https://api.spacexdata.com/v4/launches/'
+    launch_api_url = f'{api_base_url}{launch_id}'
 
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+    response = requests.get(launch_api_url, timeout=10)
+    response.raise_for_status()
+    launch_details = response.json()
 
-        if not data.get('links', {}).get('flickr', {}).get('original'):
-            return []
+    if not isinstance(launch_details, dict):
+        raise ValueError("Invalid API response format")
 
-        return data['links']['flickr']['original']
+    flickr_photos = launch_details.get('links', {}).get('flickr', {})
+    image_urls = flickr_photos.get('original', [])
 
-    except HTTPError as e:
-        print(f"Ошибка API: {e.response.status_code} - {e.response.text}")
-    except Timeout:
-        print("Превышено время ожидания ответа от API SpaceX")
-    except RequestException as e:
-        print(f"Ошибка соединения: {str(e)}")
-    except (KeyError, ValueError) as e:
-        print(f"Ошибка обработки данных: {str(e)}")
+    if not isinstance(image_urls, list):
+        raise ValueError("Invalid image data format")
 
-    return []
+    return image_urls
+
+
+def extract_file_extension_from_url(url: str) -> str:
+    return Path(urlparse(url).path).suffix
+
+
+def download_image(image_url: str, save_path: str) -> None:
+    response = requests.get(image_url, stream=True)
+    response.raise_for_status()
+
+    with open(save_path, 'wb') as output_file:
+        response.raw.decode_content = True
+        shutil.copyfileobj(response.raw, output_file)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Скачать фотографии запуска SpaceX',
+        description='Download SpaceX launch photos',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        '--id',
-        help='ID конкретного запуска (если не указан - последний)',
-        default=None
+        '--launch-id',
+        help='Specific launch ID (default: latest launch)',
+        default='latest'
     )
     parser.add_argument(
-        '--output',
-        help='Папка для сохранения изображений',
+        '--output-dir',
+        help='Directory to save downloaded images',
         default='spacex_images'
     )
     args = parser.parse_args()
 
-    images = get_spacex_launch_images(args.id)
-    if not images:
-        print("Не найдено изображений для данного запуска")
-        return
+    try:
+        try:
+            flickr_image_urls = fetch_spacex_launch_image_urls(args.launch_id)
+        except ValueError as error:
+            print(f"Data processing error: {str(error)}")
+            return
+        except RequestException as error:
+            print(f"SpaceX API request failed: {str(error)}")
+            return
 
-    save_dir = Path(args.output)
-    shutil.rmtree(save_dir, ignore_errors=True)
-    save_dir.mkdir(parents=True, exist_ok=True)
+        if not flickr_image_urls:
+            print("No Flickr images available for this launch")
+            return
 
-    print(f"Найдено {len(images)} изображений. Начинаю загрузку...")
+        output_dir = Path(args.output_dir)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    success_count = 0
-    for i, url in enumerate(images, 1):
-        filename = save_dir / f"spacex_{i}{get_file_extension_from_url(url)}"
-        if download_image(url, str(filename)):
-            success_count += 1
-            print(f"Успешно: {filename}")
+        print(f"Found {len(flickr_image_urls)} images. Starting download...")
 
-    print(f"\nЗавершено. Успешно загружено {success_count} из {len(images)} изображений")
+        success_count = 0
+        for idx, image_url in enumerate(flickr_image_urls, start=1):
+            try:
+                file_extension = extract_file_extension_from_url(image_url)
+                image_filename = output_dir / f"spacex_{idx}{file_extension}"
+                download_image(image_url, str(image_filename))
+                success_count += 1
+                print(f"Downloaded: {image_filename.name}")
+            except Exception as error:
+                print(f"Failed to download image {idx}: {str(error)}")
+
+        print(f"\nDownload complete. Success: {success_count}/{len(flickr_image_urls)}")
+
+    except OSError as error:
+        print(f"File system operation failed: {str(error)}")
+    except Exception as error:
+        print(f"Unexpected error occurred: {str(error)}")
 
 
 if __name__ == "__main__":

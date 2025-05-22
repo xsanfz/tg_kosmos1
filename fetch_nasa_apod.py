@@ -1,7 +1,7 @@
 import argparse
 import shutil
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime
 
 import requests
@@ -10,99 +10,106 @@ from requests.exceptions import RequestException, HTTPError, Timeout
 from space_utils import download_image, get_nasa_api_key, get_file_extension_from_url
 
 
-def fetch_apod_images(api_key: str, count: int = 30) -> List[Dict]:
+def fetch_apod_images(api_key: str, image_count: int = 30) -> List[Dict]:
+    response = requests.get(
+        'https://api.nasa.gov/planetary/apod',
+        params={
+            'api_key': api_key,
+            'count': image_count,
+            'thumbs': True
+        },
+        timeout=15
+    )
+    response.raise_for_status()
+
+    apod_items = response.json()
+    if not isinstance(apod_items, list):
+        raise ValueError("Invalid API response format")
+
+    return [item for item in apod_items if item.get('media_type') == 'image']
+
+
+def create_apod_filename(save_directory: Path, apod_data: Dict, item_index: int) -> Path:
+    date_string = apod_data.get('date', '')
     try:
-        response = requests.get(
-            'https://api.nasa.gov/planetary/apod',
-            params={
-                'api_key': api_key,
-                'count': count,
-                'thumbs': False
-            },
-            timeout=15
-        )
-        response.raise_for_status()
-
-        return [
-            item for item in response.json()
-            if item.get('media_type') == 'image'
-        ]
-
-    except HTTPError as e:
-        print(f"Ошибка NASA API: {e.response.status_code}")
-        if e.response.status_code == 403:
-            print("Проверьте правильность API ключа")
-    except Timeout:
-        print("Превышено время ожидания ответа от NASA API")
-    except RequestException as e:
-        print(f"Ошибка соединения: {str(e)}")
-    except ValueError as e:
-        print(f"Ошибка обработки данных: {str(e)}")
-
-    return []
-
-
-def create_unique_filename(save_dir: Path, item: Dict, index: int) -> Path:
-    date_str = item.get('date', '')
-    try:
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-        date_part = date_obj.strftime('%Y%m%d')
+        parsed_date = datetime.strptime(date_string, '%Y-%m-%d')
+        date_prefix = parsed_date.strftime('%Y%m%d')
     except (ValueError, TypeError):
-        date_part = f"unknown_{index}"
+        date_prefix = f"unknown_{item_index}"
 
-    url = item.get('hdurl') or item.get('url')
-    ext = get_file_extension_from_url(url)
-    return save_dir / f"apod_{date_part}{ext}"
+    image_url = apod_data.get('hdurl') or apod_data.get('url')
+    if not image_url:
+        raise ValueError("Image URL not found in APOD data")
+
+    file_extension = get_file_extension_from_url(image_url)
+    return save_directory / f"apod_{date_prefix}{file_extension}"
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Скачать Astronomy Picture of Day (APOD) от NASA',
+        description='Download Astronomy Picture of Day (APOD) from NASA',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         '--count',
         type=int,
         default=5,
-        help='Количество изображений для загрузки (макс. 30)'
+        help='Number of images to download (max 30)'
     )
     parser.add_argument(
         '--output',
         type=str,
         default='nasa_apod',
-        help='Папка для сохранения изображений'
+        help='Directory to save downloaded images'
     )
     args = parser.parse_args()
 
-    api_key = get_nasa_api_key()
-    if not api_key:
-        print("NASA API ключ не найден. Проверьте .env файл")
-        return
+    try:
+        api_key = get_nasa_api_key()
+        if not api_key:
+            raise ValueError("NASA API key not found. Check .env file")
 
-    images = fetch_apod_images(api_key, min(args.count, 30))
-    if not images:
-        print("Не найдено подходящих изображений")
-        return
+        apod_images = fetch_apod_images(api_key, min(args.count, 30))
+        if not apod_images:
+            print("No suitable images found")
+            return
 
-    save_dir = Path(args.output)
-    shutil.rmtree(save_dir, ignore_errors=True)
-    save_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = Path(args.output)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Найдено {len(images)} изображений. Начинаю загрузку...")
+        print(f"Found {len(apod_images)} images. Starting download...")
 
-    success_count = 0
-    for i, item in enumerate(images, 1):
-        url = item.get('hdurl') or item.get('url')
-        if not url:
-            continue
+        success_count = 0
+        for index, image_metadata in enumerate(apod_images, 1):
+            try:
+                image_url = image_metadata.get('hdurl') or image_metadata.get('url')
+                if not image_url:
+                    print(f"Skipping item {index}: Image URL not found")
+                    continue
 
-        filename = create_unique_filename(save_dir, item, i)
-        if download_image(url, str(filename)):
-            success_count += 1
-            print(f"Успешно: {filename.name}")
+                output_path = create_apod_filename(output_dir, image_metadata, index)
+                if download_image(image_url, str(output_path)):
+                    success_count += 1
+                    print(f"Downloaded: {output_path.name}")
+            except Exception as error:
+                print(f"Error processing item {index}: {str(error)}")
 
-    print(f"\nЗавершено. Успешно загружено {success_count} из {len(images)} изображений")
+        print(f"\nCompleted. Successfully downloaded {success_count} of {len(apod_images)} images")
 
-
+    except HTTPError as error:
+        print(f"NASA API error: {error.response.status_code}")
+        if error.response.status_code == 403:
+            print("Please verify your API key")
+    except Timeout:
+        print("Request to NASA API timed out")
+    except RequestException as error:
+        print(f"Connection error: {str(error)}")
+    except ValueError as error:
+        print(f"Data error: {str(error)}")
+    except OSError as error:
+        print(f"Filesystem error: {str(error)}")
+    except Exception as error:
+        print(f"Unexpected error: {str(error)}")
 if __name__ == "__main__":
     main()
