@@ -65,8 +65,6 @@ def main():
         print(f"Ошибка конфигурации: {str(e)}")
     except FileNotFoundError as e:
         print(f"Ошибка поиска изображения: {str(e)}")
-    except Exception as e:
-        print(f"Неожиданная ошибка: {str(e)}")
 
 
 if __name__ == "__main__":
