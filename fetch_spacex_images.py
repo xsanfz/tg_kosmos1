@@ -59,42 +59,44 @@ def main():
     args = parser.parse_args()
 
     try:
-        try:
-            flickr_image_urls = fetch_spacex_launch_image_urls(args.launch_id)
-        except ValueError as error:
-            print(f"Data processing error: {str(error)}")
-            return
-        except RequestException as error:
-            print(f"SpaceX API request failed: {str(error)}")
-            return
+        flickr_image_urls = fetch_spacex_launch_image_urls(args.launch_id)
+    except ValueError as error:
+        print(f"Data processing error: {str(error)}")
+        return
+    except RequestException as error:
+        print(f"SpaceX API request failed: {str(error)}")
+        return
 
-        if not flickr_image_urls:
-            print("No Flickr images available for this launch")
-            return
+    if not flickr_image_urls:
+        print("No Flickr images available for this launch")
+        return
 
+    try:
         output_dir = Path(args.output_dir)
         shutil.rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(parents=True, exist_ok=True)
-
-        print(f"Found {len(flickr_image_urls)} images. Starting download...")
-
-        success_count = 0
-        for idx, image_url in enumerate(flickr_image_urls, start=1):
-            try:
-                file_extension = extract_file_extension_from_url(image_url)
-                image_filename = output_dir / f"spacex_{idx}{file_extension}"
-                download_image(image_url, str(image_filename))
-                success_count += 1
-                print(f"Downloaded: {image_filename.name}")
-            except Exception as error:
-                print(f"Failed to download image {idx}: {str(error)}")
-
-        print(f"\nDownload complete. Success: {success_count}/{len(flickr_image_urls)}")
-
     except OSError as error:
-        print(f"File system operation failed: {str(error)}")
-    except Exception as error:
-        print(f"Unexpected error occurred: {str(error)}")
+        print(f"Failed to prepare output directory: {str(error)}")
+        return
+
+    print(f"Found {len(flickr_image_urls)} images. Starting download...")
+
+    success_count = 0
+    for idx, image_url in enumerate(flickr_image_urls, start=1):
+        try:
+            file_extension = extract_file_extension_from_url(image_url)
+            image_filename = output_dir / f"spacex_{idx}{file_extension}"
+            download_image(image_url, str(image_filename))
+            success_count += 1
+            print(f"Downloaded: {image_filename.name}")
+        except RequestException as error:
+            print(f"Failed to download image {idx}: {error}")
+        except OSError as error:
+            print(f"Failed to save image {idx}: {error}")
+        except ValueError as error:
+            print(f"Invalid URL for image {idx}: {error}")
+
+    print(f"\nDownload complete. Success: {success_count}/{len(flickr_image_urls)}")
 
 
 if __name__ == "__main__":
