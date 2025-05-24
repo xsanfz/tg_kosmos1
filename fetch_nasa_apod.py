@@ -112,11 +112,14 @@ def main():
                 continue
 
             output_path = create_apod_filename(output_dir, image_metadata, index)
-            if download_image(image_url, str(output_path)):
-                success_count += 1
-                print(f"Downloaded: {output_path.name}")
-        except Exception as error:
-            print(f"Error processing item {index}: {str(error)}")
+            try:
+                if download_image(image_url, str(output_path)):
+                    success_count += 1
+                    print(f"Downloaded: {output_path.name}")
+            except (RequestException, OSError, ValueError) as error:
+                print(f"Error downloading item {index}: {str(error)}")
+        except (ValueError, KeyError) as error:
+            print(f"Error processing metadata for item {index}: {str(error)}")
 
     print(f"\nCompleted. Successfully downloaded {success_count} of {len(apod_images)} images")
 
