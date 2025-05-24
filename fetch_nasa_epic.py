@@ -13,105 +13,104 @@ def get_nasa_api_key() -> str:
     api_key = os.getenv('NASA_API_KEY')
     if not api_key:
         raise ValueError(
-            "NASA API ключ не найден. Установите переменную окружения NASA_API_KEY "
-            "или измените код для его запроса."
+            "NASA API key not found. Please set NASA_API_KEY environment variable."
         )
     return api_key
 
 
-def download_image(url: str, params: Dict, filepath: str) -> None:
-    response = requests.get(url, params=params, stream=True, timeout=15)
+def download_image(image_url: str, request_params: Dict, save_path: str) -> None:
+    response = requests.get(image_url, params=request_params, stream=True, timeout=15)
     response.raise_for_status()
 
-    with open(filepath, 'wb') as f:
+    with open(save_path, 'wb') as file:
         for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
+            file.write(chunk)
 
 
-def fetch_epic_images(api_key: str, count: int = 10) -> List[Dict]:
-    base_url = 'https://api.nasa.gov/EPIC/api/natural/images'
+def fetch_epic_image_metadata(api_key: str, max_images: int = 10) -> List[Dict]:
+    api_endpoint = 'https://api.nasa.gov/EPIC/api/natural/images'
     response = requests.get(
-        base_url,
+        api_endpoint,
         params={'api_key': api_key},
         timeout=15
     )
     response.raise_for_status()
-    images = response.json()
-    return images[:min(count, len(images))]
+    all_images_metadata = response.json()
+    return all_images_metadata[:min(max_images, len(all_images_metadata))]
 
 
-def generate_epic_base_url(image_data: Dict) -> str:
-    date = datetime.strptime(image_data['date'], "%Y-%m-%d %H:%M:%S")
+def generate_epic_image_url(image_metadata: Dict) -> str:
+    capture_date = datetime.strptime(image_metadata['date'], "%Y-%m-%d %H:%M:%S")
     return (
         f"https://api.nasa.gov/EPIC/archive/natural/"
-        f"{date:%Y/%m/%d}/png/{image_data['image']}.png"
+        f"{capture_date:%Y/%m/%d}/png/{image_metadata['image']}.png"
     )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Скачивание изображений Земли NASA EPIC',
+        description='Download NASA EPIC Earth imagery',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         '--count',
         type=int,
         default=5,
-        help='Количество изображений для скачивания (максимум 10)'
+        help='Number of images to download (max 10)'
     )
     parser.add_argument(
         '--output',
         type=str,
         default='nasa_epic',
-        help='Директория для сохранения изображений'
+        help='Directory to save downloaded images'
     )
     args = parser.parse_args()
 
     try:
-        api_key = get_nasa_api_key()
-    except ValueError as e:
-        print(f"Ошибка конфигурации: {str(e)}")
+        nasa_api_key = get_nasa_api_key()
+    except ValueError as error:
+        print(f"Configuration error: {str(error)}")
         return
 
-    save_dir = Path(args.output)
+    output_directory = Path(args.output)
     try:
-        shutil.rmtree(save_dir, ignore_errors=True)
-        save_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"Ошибка файловой системы: {str(e)}")
+        shutil.rmtree(output_directory, ignore_errors=True)
+        output_directory.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        print(f"Filesystem error: {str(error)}")
         return
 
     try:
-        images = fetch_epic_images(api_key, min(args.count, 10))
-    except RequestException as e:
-        print(f"Ошибка запроса к NASA API: {str(e)}")
+        images_metadata = fetch_epic_image_metadata(nasa_api_key, min(args.count, 10))
+    except RequestException as error:
+        print(f"NASA API request error: {str(error)}")
         return
 
-    print(f"Найдено {len(images)} изображений. Скачивание...")
+    print(f"Found {len(images_metadata)} images. Downloading...")
 
-    success_count = 0
-    for i, img_data in enumerate(images, 1):
+    downloaded_count = 0
+    for image_number, single_image_metadata in enumerate(images_metadata, 1):
         try:
-            base_url = generate_epic_base_url(img_data)
-            filename = save_dir / f"epic_{i}_{img_data['image']}.png"
+            image_url = generate_epic_image_url(single_image_metadata)
+            filename = output_directory / f"epic_{image_number}_{single_image_metadata['image']}.png"
 
             try:
-                download_image(base_url, {'api_key': api_key}, str(filename))
-                success_count += 1
-                print(f"Скачано: {filename.name}")
-            except (KeyError, ValueError) as e:
-                print(f"Пропуск изображения {i}: Неверные метаданные - {str(e)}")
-            except (RequestException, OSError) as e:
-                print(f"Ошибка скачивания изображения {i}: {str(e)}")
+                download_image(image_url, {'api_key': nasa_api_key}, str(filename))
+                downloaded_count += 1
+                print(f"Downloaded: {filename.name}")
+            except (KeyError, ValueError) as error:
+                print(f"Skipping image {image_number}: Invalid metadata - {str(error)}")
+            except (RequestException, OSError) as error:
+                print(f"Download error for image {image_number}: {str(error)}")
 
-        except (KeyError, ValueError) as e:
-            print(f"Ошибка обработки метаданных изображения {i}: {str(e)}")
+        except (KeyError, ValueError) as error:
+            print(f"Metadata processing error for image {image_number}: {str(error)}")
             continue
-        except (RequestException, OSError) as e:
-            print(f"Ошибка обработки изображения {i}: {str(e)}")
+        except (RequestException, OSError) as error:
+            print(f"Image processing error for image {image_number}: {str(error)}")
             continue
 
-    print(f"\nГотово. Успешно скачано {success_count}/{len(images)} изображений")
+    print(f"\nDone. Successfully downloaded {downloaded_count}/{len(images_metadata)} images")
 
 
 if __name__ == "__main__":
