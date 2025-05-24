@@ -30,22 +30,22 @@ def fetch_apod_images(api_key: str, image_count: int = 30) -> List[Dict]:
 
 
 def create_apod_filename(
-        save_directory: Path,
-        date_string: str,
+        output_dir: Path,
+        apod_date: str,
         image_url: str,
-        item_index: int
+        fallback_index: int
 ) -> Path:
     try:
-        parsed_date = datetime.strptime(date_string, '%Y-%m-%d')
-        date_prefix = parsed_date.strftime('%Y%m%d')
+        publication_date = datetime.strptime(apod_date, '%Y-%m-%d')
+        date_prefix = publication_date.strftime('%Y%m%d')
     except ValueError:
-        date_prefix = f"unknown_{item_index}"
+        date_prefix = f"no_date_{fallback_index}"
 
     if not image_url:
-        raise ValueError("Image URL is required")
+        raise ValueError("Image URL must be provided")
 
     file_extension = get_file_extension_from_url(image_url)
-    return save_directory / f"apod_{date_prefix}{file_extension}"
+    return output_dir / f"apod_{date_prefix}{file_extension}"
 
 
 def main():
