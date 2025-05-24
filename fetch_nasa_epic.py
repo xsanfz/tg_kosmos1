@@ -92,23 +92,23 @@ def main():
     for image_number, single_image_metadata in enumerate(images_metadata, 1):
         try:
             image_url = generate_epic_image_url(single_image_metadata)
-            filename = output_directory / f"epic_{image_number}_{single_image_metadata['image']}.png"
-
-            try:
-                download_image(image_url, {'api_key': nasa_api_key}, str(filename))
-                downloaded_count += 1
-                print(f"Downloaded: {filename.name}")
-            except (KeyError, ValueError) as error:
-                print(f"Skipping image {image_number}: Invalid metadata - {str(error)}")
-            except (RequestException, OSError) as error:
-                print(f"Download error for image {image_number}: {str(error)}")
-
         except (KeyError, ValueError) as error:
-            print(f"Metadata processing error for image {image_number}: {str(error)}")
+            print(f"Skipping image {image_number}: Invalid metadata - {str(error)}")
             continue
-        except (RequestException, OSError) as error:
-            print(f"Image processing error for image {image_number}: {str(error)}")
+
+        filename = output_directory / f"epic_{image_number}_{single_image_metadata['image']}.png"
+
+        try:
+            download_image(image_url, {'api_key': nasa_api_key}, str(filename))
+        except RequestException as error:
+            print(f"Download failed for image {image_number}: {str(error)}")
             continue
+        except OSError as error:
+            print(f"File save error for image {image_number}: {str(error)}")
+            continue
+
+        downloaded_count += 1
+        print(f"Downloaded: {filename.name}")
 
     print(f"\nDone. Successfully downloaded {downloaded_count}/{len(images_metadata)} images")
 
