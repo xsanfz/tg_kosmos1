@@ -98,8 +98,6 @@ def main():
         print(f"Ошибка запроса к NASA API: {str(e)}")
     except OSError as e:
         print(f"Ошибка файловой системы: {str(e)}")
-    except Exception as e:
-        print(f"Неожиданная ошибка: {str(e)}")
 
 
 if __name__ == "__main__":
