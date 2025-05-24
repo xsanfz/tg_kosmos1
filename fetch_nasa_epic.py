@@ -69,19 +69,33 @@ def main():
 
     try:
         api_key = get_nasa_api_key()
-        save_dir = Path(args.output)
+    except ValueError as e:
+        print(f"Ошибка конфигурации: {str(e)}")
+        return
+
+    save_dir = Path(args.output)
+    try:
         shutil.rmtree(save_dir, ignore_errors=True)
         save_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"Ошибка файловой системы: {str(e)}")
+        return
 
+    try:
         images = fetch_epic_images(api_key, min(args.count, 10))
-        print(f"Найдено {len(images)} изображений. Скачивание...")
+    except RequestException as e:
+        print(f"Ошибка запроса к NASA API: {str(e)}")
+        return
 
-        success_count = 0
-        for i, img_data in enumerate(images, 1):
+    print(f"Найдено {len(images)} изображений. Скачивание...")
+
+    success_count = 0
+    for i, img_data in enumerate(images, 1):
+        try:
+            base_url = generate_epic_base_url(img_data)
+            filename = save_dir / f"epic_{i}_{img_data['image']}.png"
+
             try:
-                base_url = generate_epic_base_url(img_data)
-                filename = save_dir / f"epic_{i}_{img_data['image']}.png"
-
                 download_image(base_url, {'api_key': api_key}, str(filename))
                 success_count += 1
                 print(f"Скачано: {filename.name}")
@@ -90,14 +104,14 @@ def main():
             except (RequestException, OSError) as e:
                 print(f"Ошибка скачивания изображения {i}: {str(e)}")
 
-        print(f"\nГотово. Успешно скачано {success_count}/{len(images)} изображений")
+        except (KeyError, ValueError) as e:
+            print(f"Ошибка обработки метаданных изображения {i}: {str(e)}")
+            continue
+        except (RequestException, OSError) as e:
+            print(f"Ошибка обработки изображения {i}: {str(e)}")
+            continue
 
-    except ValueError as e:
-        print(f"Ошибка конфигурации: {str(e)}")
-    except RequestException as e:
-        print(f"Ошибка запроса к NASA API: {str(e)}")
-    except OSError as e:
-        print(f"Ошибка файловой системы: {str(e)}")
+    print(f"\nГотово. Успешно скачано {success_count}/{len(images)} изображений")
 
 
 if __name__ == "__main__":
