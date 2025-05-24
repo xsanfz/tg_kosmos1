@@ -68,48 +68,58 @@ def main():
         api_key = get_nasa_api_key()
         if not api_key:
             raise ValueError("NASA API key not found. Check .env file")
+    except ValueError as error:
+        print(f"Configuration error: {str(error)}")
+        return
 
+    try:
         apod_images = fetch_apod_images(api_key, min(args.count, 30))
-        if not apod_images:
-            print("No suitable images found")
-            return
-
-        output_dir = Path(args.output)
-        shutil.rmtree(output_dir, ignore_errors=True)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        print(f"Found {len(apod_images)} images. Starting download...")
-
-        success_count = 0
-        for index, image_metadata in enumerate(apod_images, 1):
-            try:
-                image_url = image_metadata.get('hdurl') or image_metadata.get('url')
-                if not image_url:
-                    print(f"Skipping item {index}: Image URL not found")
-                    continue
-
-                output_path = create_apod_filename(output_dir, image_metadata, index)
-                if download_image(image_url, str(output_path)):
-                    success_count += 1
-                    print(f"Downloaded: {output_path.name}")
-            except Exception as error:
-                print(f"Error processing item {index}: {str(error)}")
-
-        print(f"\nCompleted. Successfully downloaded {success_count} of {len(apod_images)} images")
-
     except HTTPError as error:
         print(f"NASA API error: {error.response.status_code}")
         if error.response.status_code == 403:
             print("Please verify your API key")
+        return
     except Timeout:
         print("Request to NASA API timed out")
+        return
     except RequestException as error:
         print(f"Connection error: {str(error)}")
+        return
     except ValueError as error:
         print(f"Data error: {str(error)}")
+        return
+
+    if not apod_images:
+        print("No suitable images found")
+        return
+
+    try:
+        output_dir = Path(args.output)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
     except OSError as error:
         print(f"Filesystem error: {str(error)}")
-    except Exception as error:
-        print(f"Unexpected error: {str(error)}")
+        return
+
+    print(f"Found {len(apod_images)} images. Starting download...")
+
+    success_count = 0
+    for index, image_metadata in enumerate(apod_images, 1):
+        try:
+            image_url = image_metadata.get('hdurl') or image_metadata.get('url')
+            if not image_url:
+                print(f"Skipping item {index}: Image URL not found")
+                continue
+
+            output_path = create_apod_filename(output_dir, image_metadata, index)
+            if download_image(image_url, str(output_path)):
+                success_count += 1
+                print(f"Downloaded: {output_path.name}")
+        except Exception as error:
+            print(f"Error processing item {index}: {str(error)}")
+
+    print(f"\nCompleted. Successfully downloaded {success_count} of {len(apod_images)} images")
+
+
 if __name__ == "__main__":
     main()
