@@ -29,17 +29,20 @@ def fetch_apod_images(api_key: str, image_count: int = 30) -> List[Dict]:
     return [item for item in apod_items if item.get('media_type') == 'image']
 
 
-def create_apod_filename(save_directory: Path, apod_data: Dict, item_index: int) -> Path:
-    date_string = apod_data.get('date', '')
+def create_apod_filename(
+        save_directory: Path,
+        date_string: str,
+        image_url: str,
+        item_index: int
+) -> Path:
     try:
         parsed_date = datetime.strptime(date_string, '%Y-%m-%d')
         date_prefix = parsed_date.strftime('%Y%m%d')
-    except (ValueError, TypeError):
+    except ValueError:
         date_prefix = f"unknown_{item_index}"
 
-    image_url = apod_data.get('hdurl') or apod_data.get('url')
     if not image_url:
-        raise ValueError("Image URL not found in APOD data")
+        raise ValueError("Image URL is required")
 
     file_extension = get_file_extension_from_url(image_url)
     return save_directory / f"apod_{date_prefix}{file_extension}"
@@ -111,15 +114,18 @@ def main():
                 print(f"Skipping item {index}: Image URL not found")
                 continue
 
-            output_path = create_apod_filename(output_dir, image_metadata, index)
-            try:
-                if download_image(image_url, str(output_path)):
-                    success_count += 1
-                    print(f"Downloaded: {output_path.name}")
-            except (RequestException, OSError, ValueError) as error:
-                print(f"Error downloading item {index}: {str(error)}")
-        except (ValueError, KeyError) as error:
-            print(f"Error processing metadata for item {index}: {str(error)}")
+            output_path = create_apod_filename(
+                save_directory=output_dir,
+                date_string=image_metadata.get('date', ''),
+                image_url=image_url,
+                item_index=index
+            )
+
+            if download_image(image_url, str(output_path)):
+                success_count += 1
+                print(f"Downloaded: {output_path.name}")
+        except (RequestException, OSError, ValueError) as error:
+            print(f"Error downloading item {index}: {str(error)}")
 
     print(f"\nCompleted. Successfully downloaded {success_count} of {len(apod_images)} images")
 
