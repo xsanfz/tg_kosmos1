@@ -2,10 +2,11 @@ import os
 import shutil
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
+from typing import Dict, Optional
 
 import requests
 from dotenv import load_dotenv
-from requests.exceptions import Timeout, HTTPError
+from requests.exceptions import Timeout, HTTPError, RequestException
 
 
 def get_file_extension_from_url(url: str) -> str:
@@ -16,17 +17,43 @@ def get_file_extension_from_url(url: str) -> str:
     return ext.lower() if ext else '.jpg'
 
 
-def download_image(image_url: str, save_path: str) -> None:
-    response = requests.get(image_url, stream=True, timeout=30)
-    response.raise_for_status()
+def download_image(
+        image_url: str,
+        save_path: str,
+        params: Optional[Dict] = None,
+        timeout: int = 30,
+        stream: bool = True,
+        raise_for_status: bool = True
+) -> bool:
+    try:
+        response = requests.get(
+            image_url,
+            params=params,
+            stream=stream,
+            timeout=timeout
+        )
 
-    Path(os.path.dirname(save_path)).mkdir(parents=True, exist_ok=True)
+        if raise_for_status:
+            response.raise_for_status()
 
-    with open(save_path, 'wb') as f:
-        shutil.copyfileobj(response.raw, f)
+        Path(os.path.dirname(save_path)).mkdir(parents=True, exist_ok=True)
+
+        with open(save_path, 'wb') as f:
+            if stream:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            else:
+                f.write(response.content)
+
+        return True
+
+    except RequestException as e:
+        if raise_for_status:
+            raise
+        return False
 
 
-def get_nasa_api_key() -> str | None:
+def get_nasa_api_key() -> Optional[str]:
     load_dotenv()
     return os.getenv('NASA_API_KEY')
 
@@ -43,7 +70,7 @@ def main():
         print(f"Timeout occurred while downloading {image_url}")
     except HTTPError as e:
         print(f"HTTP Error {e.response.status_code} for {image_url}")
-    except requests.RequestException as e:
+    except RequestException as e:
         print(f"Network error: {e}")
     except OSError as e:
         print(f"File system error: {e}")

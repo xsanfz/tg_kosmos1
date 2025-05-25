@@ -7,24 +7,7 @@ from datetime import datetime
 import requests
 from requests.exceptions import RequestException
 
-
-def get_nasa_api_key() -> str:
-    import os
-    api_key = os.getenv('NASA_API_KEY')
-    if not api_key:
-        raise ValueError(
-            "NASA API key not found. Please set NASA_API_KEY environment variable."
-        )
-    return api_key
-
-
-def download_image(image_url: str, request_params: Dict, save_path: str) -> None:
-    response = requests.get(image_url, params=request_params, stream=True, timeout=15)
-    response.raise_for_status()
-
-    with open(save_path, 'wb') as file:
-        for chunk in response.iter_content(chunk_size=8192):
-            file.write(chunk)
+from space_utils import download_image, get_nasa_api_key
 
 
 def fetch_epic_image_metadata(api_key: str, max_images: int = 10) -> List[Dict]:
@@ -99,7 +82,12 @@ def main():
         filename = output_directory / f"epic_{image_number}_{single_image_metadata['image']}.png"
 
         try:
-            download_image(image_url, {'api_key': nasa_api_key}, str(filename))
+            download_image(
+                image_url=image_url,
+                save_path=str(filename),
+                params={'api_key': nasa_api_key},
+                timeout=15
+            )
         except RequestException as error:
             print(f"Download failed for image {image_number}: {str(error)}")
             continue
