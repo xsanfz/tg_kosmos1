@@ -23,58 +23,70 @@ def configure_logging() -> None:
     )
 
 
-def get_telegram_token() -> str:
-    token = os.getenv('TELEGRAM_TOKEN')
-    if not token:
-        raise RuntimeError("TELEGRAM_TOKEN не найден в .env файле")
-    return token
+def get_telegram_bot_token() -> str:
+    bot_token = os.getenv('TELEGRAM_TOKEN')
+    if not bot_token:
+        raise RuntimeError("TELEGRAM_TOKEN not found in .env file")
+    return bot_token
 
 
-def get_telegram_channel() -> str:
-    channel = os.getenv('TELEGRAM_CHANNEL')
-    if not channel:
-        raise RuntimeError("TELEGRAM_CHANNEL не найден в .env файле")
-    return channel
+def get_telegram_channel_id() -> str:
+    channel_id = os.getenv('TELEGRAM_CHANNEL')
+    if not channel_id:
+        raise RuntimeError("TELEGRAM_CHANNEL not found in .env file")
+    return channel_id
 
 
-def validate_directory(directory: Path) -> None:
-    if not directory.exists():
-        raise FileNotFoundError(f"Директория {directory} не существует")
-    if not directory.is_dir():
-        raise NotADirectoryError(f"{directory} не является директорией")
-    if not os.access(directory, os.R_OK):
-        raise PermissionError(f"Нет доступа к директории {directory}")
+def validate_image_directory(image_directory: Path) -> None:
+    if not image_directory.exists():
+        raise FileNotFoundError(f"Directory {image_directory} does not exist")
+    if not image_directory.is_dir():
+        raise NotADirectoryError(f"{image_directory} is not a directory")
+    if not os.access(image_directory, os.R_OK):
+        raise PermissionError(f"No read access to directory {image_directory}")
 
 
-def get_image_files(directory: Path) -> List[Path]:
-    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
-    return [f for f in directory.iterdir()
-            if f.is_file() and f.suffix.lower() in image_extensions]
+def get_image_files(image_directory: Path) -> List[Path]:
+    supported_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+    return [
+        file for file in image_directory.iterdir()
+        if file.is_file() and file.suffix.lower() in supported_extensions
+    ]
 
 
-async def validate_bot_access(bot: Bot, channel: str) -> None:
-    await bot.get_chat(channel)
+async def verify_bot_has_channel_access(bot: Bot, channel_id: str) -> None:
+    try:
+        await bot.get_chat(channel_id)
+    except telegram_error.Unauthorized as error:
+        raise RuntimeError("Invalid bot token") from error
+    except telegram_error.BadRequest as error:
+        raise RuntimeError(f"Channel {channel_id} not found or bot has no access") from error
 
 
-async def run_publishing_loop(bot: Bot, channel: str, directory: Path, interval: int) -> NoReturn:
-    interval_seconds = interval * 3600
-    logger.info(f"Запуск цикла публикации с интервалом {interval} часов")
+async def publish_images_periodically(
+        bot: Bot,
+        channel_id: str,
+        image_directory: Path,
+        hours_interval: int
+) -> NoReturn:
+    interval_seconds = hours_interval * 3600
+    logger.info(f"Starting publication loop with {hours_interval} hour interval")
 
     with suppress(KeyboardInterrupt, asyncio.CancelledError):
         while True:
-            images = get_image_files(directory)
-            if not images:
-                logger.warning(f"Нет изображений в директории {directory}")
+            image_files = get_image_files(image_directory)
+            if not image_files:
+                logger.warning(f"No images found in directory {image_directory}")
                 await asyncio.sleep(interval_seconds)
                 continue
 
-            random.shuffle(images)
+            random.shuffle(image_files)
 
-            for photo_path in images:
-                if await publish_photo(bot, channel, photo_path):
-                    logger.info(f"Опубликовано: {photo_path.name}")
+            for image_path in image_files:
+                if await publish_photo(bot, channel_id, image_path):
+                    logger.info(f"Published: {image_path.name}")
                     break
-                logger.warning(f"Не удалось опубликовать: {photo_path.name}")
+                logger.warning(f"Failed to publish: {image_path.name}")
 
             await asyncio.sleep(interval_seconds)
 
@@ -82,41 +94,36 @@ async def run_publishing_loop(bot: Bot, channel: str, directory: Path, interval:
 async def async_main() -> None:
     try:
         parser = argparse.ArgumentParser(
-            description='Публикация изображений в Telegram-канал'
+            description='Publish images to Telegram channel'
         )
         parser.add_argument(
             '--directory',
             type=str,
             default='images',
-            help='Директория с изображениями (по умолчанию: images)'
+            help='Directory with images (default: images)'
         )
         parser.add_argument(
             '--interval',
             type=int,
             default=4,
-            help='Интервал публикации в часах (по умолчанию: 4)'
+            help='Publication interval in hours (default: 4)'
         )
         args = parser.parse_args()
 
-        directory = Path(args.directory)
-        validate_directory(directory)
+        image_directory = Path(args.directory)
+        validate_image_directory(image_directory)
 
-        bot = Bot(token=get_telegram_token())
-        channel = get_telegram_channel()
+        bot = Bot(token=get_telegram_bot_token())
+        channel_id = get_telegram_channel_id()
 
-        try:
-            await validate_bot_access(bot, channel)
-        except telegram_error.Unauthorized as e:
-            raise RuntimeError("Неверный токен бота") from e
-        except telegram_error.BadRequest as e:
-            raise RuntimeError(f"Канал {channel} не найден или бот не имеет доступа") from e
+        await verify_bot_has_channel_access(bot, channel_id)
 
-        logger.info(f"Бот запущен. Публикация каждые {args.interval} часов из {directory}")
-        await run_publishing_loop(bot, channel, directory, args.interval)
+        logger.info(f"Bot started. Publishing every {args.interval} hours from {image_directory}")
+        await publish_images_periodically(bot, channel_id, image_directory, args.interval)
 
-    except (RuntimeError, FileNotFoundError, NotADirectoryError, PermissionError) as e:
-        logger.error(f"Ошибка: {e}")
-        raise SystemExit(1) from e
+    except (RuntimeError, FileNotFoundError, NotADirectoryError, PermissionError) as error:
+        logger.error(f"Error: {error}")
+        raise SystemExit(1) from error
 
 
 def main() -> None:
@@ -124,9 +131,9 @@ def main() -> None:
         load_dotenv()
         configure_logging()
         asyncio.run(async_main())
-    except Exception as e:
-        logger.error(f"Неожиданная ошибка: {e}")
-        raise SystemExit(1) from e
+    except Exception as error:
+        logger.error(f"Unexpected error: {error}")
+        raise SystemExit(1) from error
 
 
 if __name__ == "__main__":
