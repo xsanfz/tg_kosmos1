@@ -71,8 +71,8 @@ def main():
         print("No Flickr images available for this launch")
         return
 
+    output_dir = Path(args.output_dir)
     try:
-        output_dir = Path(args.output_dir)
         shutil.rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(parents=True, exist_ok=True)
     except OSError as error:
@@ -86,13 +86,16 @@ def main():
         try:
             file_extension = extract_file_extension_from_url(image_url)
             image_filename = output_dir / f"spacex_{idx}{file_extension}"
-            download_image(image_url, str(image_filename))
-            success_count += 1
-            print(f"Downloaded: {image_filename.name}")
-        except RequestException as error:
-            print(f"Failed to download image {idx}: {error}")
-        except OSError as error:
-            print(f"Failed to save image {idx}: {error}")
+
+            try:
+                download_image(image_url, str(image_filename))
+                success_count += 1
+                print(f"Downloaded: {image_filename.name}")
+            except RequestException as error:
+                print(f"Failed to download image {idx}: {error}")
+            except OSError as error:
+                print(f"Failed to save image {idx}: {error}")
+
         except ValueError as error:
             print(f"Invalid URL for image {idx}: {error}")
 
