@@ -26,24 +26,29 @@ def configure_logging() -> None:
 def get_telegram_token() -> str:
     token = os.getenv('TELEGRAM_TOKEN')
     if not token:
-        raise RuntimeError("TELEGRAM_TOKEN не найден в .env файле")
+        logger.error("TELEGRAM_TOKEN не найден в .env файле")
+        raise SystemExit(1)
     return token
 
 
 def get_telegram_channel() -> str:
     channel = os.getenv('TELEGRAM_CHANNEL')
     if not channel:
-        raise RuntimeError("TELEGRAM_CHANNEL не найден в .env файле")
+        logger.error("TELEGRAM_CHANNEL не найден в .env файле")
+        raise SystemExit(1)
     return channel
 
 
 def validate_directory(directory: Path) -> None:
     if not directory.exists():
-        raise FileNotFoundError(f"Директория {directory} не существует")
+        logger.error(f"Директория {directory} не существует")
+        raise SystemExit(1)
     if not directory.is_dir():
-        raise NotADirectoryError(f"{directory} не является директорией")
+        logger.error(f"{directory} не является директорией")
+        raise SystemExit(1)
     if not os.access(directory, os.R_OK):
-        raise PermissionError(f"Нет доступа к директории {directory}")
+        logger.error(f"Нет доступа к директории {directory}")
+        raise SystemExit(1)
 
 
 def get_image_files(directory: Path) -> List[Path]:
@@ -53,8 +58,14 @@ def get_image_files(directory: Path) -> List[Path]:
 
 
 async def validate_bot_access(bot: Bot, channel: str) -> None:
-    with suppress(telegram_error.TelegramError):
+    try:
         await bot.get_chat(channel)
+    except telegram_error.Unauthorized:
+        logger.error("Неверный токен бота")
+        raise SystemExit(1)
+    except telegram_error.BadRequest:
+        logger.error(f"Канал {channel} не найден или бот не имеет доступа")
+        raise SystemExit(1)
 
 
 async def run_publishing_loop(bot: Bot, channel: str, directory: Path, interval: int) -> NoReturn:
