@@ -98,8 +98,7 @@ def main():
         shutil.rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(parents=True, exist_ok=True)
     except OSError as error:
-        print(f"Filesystem error: {str(error)}")
-        return
+        raise RuntimeError(f"Failed to prepare output directory {args.output}") from error
 
     print(f"Found {len(apod_images)} images. Starting download...")
 
