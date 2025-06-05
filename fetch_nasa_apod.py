@@ -24,7 +24,7 @@ def fetch_apod_images(api_key: str, image_count: int = 30) -> List[Dict]:
 
     apod_items = response.json()
     if not isinstance(apod_items, list):
-        raise ValueError("Invalid API response format")
+        raise RuntimeError("NASA API returned unexpected data format - expected list")
 
     return [item for item in apod_items if item.get('media_type') == 'image']
 
@@ -42,7 +42,7 @@ def create_apod_filename(
         date_prefix = f"no_date_{fallback_index}"
 
     if not image_url:
-        raise ValueError("Image URL must be provided")
+        raise RuntimeError("Cannot create filename - image URL is missing")
 
     file_extension = get_file_extension_from_url(image_url)
     return output_dir / f"apod_{date_prefix}{file_extension}"
@@ -85,8 +85,8 @@ def main():
     except RequestException as error:
         print(f"Connection error: {str(error)}")
         return
-    except ValueError as error:
-        print(f"Data error: {str(error)}")
+    except RuntimeError as error:
+        print(f"NASA API data format error: {str(error)}")
         return
 
     if not apod_images:
@@ -121,7 +121,7 @@ def main():
             if download_image(image_url, str(output_path)):
                 success_count += 1
                 print(f"Downloaded: {output_path.name}")
-        except (RequestException, OSError, ValueError) as error:
+        except (RequestException, OSError, RuntimeError) as error:
             print(f"Error downloading item {index}: {str(error)}")
 
     print(f"\nCompleted. Successfully downloaded {success_count} of {len(apod_images)} images")
