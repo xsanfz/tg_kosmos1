@@ -24,13 +24,13 @@ def fetch_spacex_launch_image_urls(launch_id: str = 'latest') -> List[str]:
         raise RuntimeError(f"Invalid JSON response from API: {e}")
 
     if not isinstance(launch_details, dict):
-        raise RuntimeError("API response is not a dictionary")
+        raise ValueError("API response is not a dictionary")
 
     flickr_photos = launch_details.get('links', {}).get('flickr', {})
     image_urls = flickr_photos.get('original', [])
 
     if not isinstance(image_urls, list):
-        raise RuntimeError("Image data is not a list")
+        raise TypeError("Image data is not a list")
 
     return image_urls
 
@@ -67,10 +67,9 @@ def main():
     )
     args = parser.parse_args()
 
-    # Fetch image URLs
     try:
         flickr_image_urls = fetch_spacex_launch_image_urls(args.launch_id)
-    except RuntimeError as e:
+    except (RuntimeError, ValueError, TypeError) as e:
         print(f"Error: {e}")
         return
 
