@@ -67,12 +67,9 @@ def main():
     )
     args = parser.parse_args()
 
-    try:
-        api_key = get_nasa_api_key()
-        if not api_key:
-            raise ValueError("NASA API key not found. Check .env file")
-    except ValueError as error:
-        print(f"Configuration error: {str(error)}")
+    api_key = get_nasa_api_key()
+    if not api_key:
+        print("Configuration error: NASA API key not found. Check .env file")
         return
 
     try:
