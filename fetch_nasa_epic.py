@@ -3,21 +3,24 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 import requests
+from typing import List, Dict
 from space_utils import download_image, get_nasa_api_key
 
 
-def fetch_epic_images(api_key: str, max_images: int = 10) -> list[dict]:
+def fetch_epic_images(api_key: str, max_images: int = 10) -> List[Dict]:
+    """Fetch available EPIC Earth images data from NASA API."""
     api_endpoint = 'https://api.nasa.gov/EPIC/api/natural/images'
     response = requests.get(api_endpoint, params={'api_key': api_key}, timeout=15)
     response.raise_for_status()
     return response.json()[:max_images]
 
 
-def generate_epic_image_url(image_metadata: dict) -> str:
-    capture_date = datetime.strptime(image_metadata['date'], "%Y-%m-%d %H:%M:%S")
+def generate_epic_image_url(image: dict) -> str:
+    """Generate download URL for a specific EPIC image."""
+    capture_date = datetime.strptime(image['date'], "%Y-%m-%d %H:%M:%S")
     return (
         f"https://api.nasa.gov/EPIC/archive/natural/"
-        f"{capture_date:%Y/%m/%d}/png/{image_metadata['image']}.png"
+        f"{capture_date:%Y/%m/%d}/png/{image['image']}.png"
     )
 
 
@@ -46,13 +49,13 @@ def main():
     shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
-    images_metadata = fetch_epic_image_metadata(nasa_api_key, min(args.count, 10))
-    print(f"Found {len(images_metadata)} images. Downloading...")
+    images = fetch_epic_images(nasa_api_key, min(args.count, 10))
+    print(f"Found {len(images)} images. Downloading...")
 
     downloaded_count = 0
-    for image_number, single_image_metadata in enumerate(images_metadata, 1):
-        image_url = generate_epic_image_url(single_image_metadata)
-        filename = output_directory / f"epic_{image_number}_{single_image_metadata['image']}.png"
+    for image_number, image in enumerate(images, 1):
+        image_url = generate_epic_image_url(image)
+        filename = output_directory / f"epic_{image_number}_{image['image']}.png"
 
         download_image(
             image_url=image_url,
@@ -64,7 +67,7 @@ def main():
         downloaded_count += 1
         print(f"Downloaded: {filename.name}")
 
-    print(f"\nDone. Successfully downloaded {downloaded_count}/{len(images_metadata)} images")
+    print(f"\nDone. Successfully downloaded {downloaded_count}/{len(images)} images")
 
 
 if __name__ == "__main__":
