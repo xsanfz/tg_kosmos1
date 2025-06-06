@@ -14,11 +14,14 @@ def fetch_epic_images(api_key: str, max_images: int = 10) -> List[Dict]:
     return response.json()[:max_images]
 
 
-def generate_epic_image_url(image: dict) -> str:
-    capture_date = datetime.strptime(image['date'], "%Y-%m-%d %H:%M:%S")
+def generate_epic_image_url(
+        image_date: str,
+        image_name: str
+) -> str:
+    capture_date = datetime.strptime(image_date, "%Y-%m-%d %H:%M:%S")
     return (
         f"https://api.nasa.gov/EPIC/archive/natural/"
-        f"{capture_date:%Y/%m/%d}/png/{image['image']}.png"
+        f"{capture_date:%Y/%m/%d}/png/{image_name}.png"
     )
 
 
@@ -52,7 +55,10 @@ def main():
 
     downloaded_count = 0
     for image_number, image in enumerate(images, 1):
-        image_url = generate_epic_image_url(image)
+        image_url = generate_epic_image_url(
+            image_date=image['date'],
+            image_name=image['image']
+        )
         filename = output_directory / f"epic_{image_number}_{image['image']}.png"
 
         download_image(
