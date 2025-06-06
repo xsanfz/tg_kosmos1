@@ -6,7 +6,7 @@ import requests
 from space_utils import download_image, get_nasa_api_key
 
 
-def fetch_epic_image_metadata(api_key: str, max_images: int = 10) -> list[dict]:
+def fetch_epic_images(api_key: str, max_images: int = 10) -> list[dict]:
     api_endpoint = 'https://api.nasa.gov/EPIC/api/natural/images'
     response = requests.get(api_endpoint, params={'api_key': api_key}, timeout=15)
     response.raise_for_status()
