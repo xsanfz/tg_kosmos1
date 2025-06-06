@@ -1,80 +1,58 @@
-import os
-import shutil
 from pathlib import Path
-from urllib.parse import urlsplit, unquote
-from typing import Dict, Optional
+from typing import List, Optional, Union
+import random
+import sys
 
-import requests
-from dotenv import load_dotenv
-from requests.exceptions import Timeout, HTTPError, RequestException
+def get_image_files(
+        directory: Path,
+        photo_name: Optional[str] = None,
+        extensions: Optional[List[str]] = None
+) -> Union[Optional[Path], List[Path]]:
+    if not directory.exists():
+        raise FileNotFoundError(f"Директория {directory} не существует.")
+    if not directory.is_dir():
+        raise NotADirectoryError(f"{directory} не является директорией.")
 
+    if extensions is None:
+        extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 
-def get_file_extension_from_url(url: str) -> str:
-    parsed = urlsplit(url)
-    path = unquote(parsed.path)
-    filename = os.path.split(path)[1]
-    _, ext = os.path.splitext(filename)
-    return ext.lower() if ext else '.jpg'
+    if photo_name:
+        image_path = directory / photo_name
+        if not image_path.exists():
+            raise FileNotFoundError(f"Изображение {image_path} не найдено.")
+        return image_path
 
+    images = [
+        file for file in directory.iterdir()
+        if file.is_file() and file.suffix.lower() in extensions
+    ]
 
-def download_image(
-        image_url: str,
-        save_path: str,
-        params: Optional[Dict] = None,
-        timeout: int = 30,
-        stream: bool = True,
-        raise_for_status: bool = True
-) -> bool:
-    try:
-        response = requests.get(
-            image_url,
-            params=params,
-            stream=stream,
-            timeout=timeout
-        )
+    return images
 
-        if raise_for_status:
-            response.raise_for_status()
-
-        Path(os.path.dirname(save_path)).mkdir(parents=True, exist_ok=True)
-
-        with open(save_path, 'wb') as f:
-            if stream:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            else:
-                f.write(response.content)
-
-        return True
-
-    except RequestException as e:
-        if raise_for_status:
-            raise
-        return False
-
-
-def get_nasa_api_key() -> Optional[str]:
-    load_dotenv()
-    return os.getenv('NASA_API_KEY')
-
+def get_random_image(directory: Path) -> Optional[Path]:
+    images = get_image_files(directory)
+    if not images:
+        raise ValueError(f"В директории {directory} нет подходящих изображений.")
+    return random.choice(images)
 
 def main():
-    image_url = "https://apod.nasa.gov/apod/image/2205/JupiterDarkSpot_JunoGill_4000.jpg"
-    save_path = "images/jupiter.jpg"
-
     try:
-        download_image(image_url, save_path)
-        print(f"Successfully downloaded image to {save_path}")
+        image_dir = Path("images")
 
-    except Timeout:
-        print(f"Timeout occurred while downloading {image_url}")
-    except HTTPError as e:
-        print(f"HTTP Error {e.response.status_code} for {image_url}")
-    except RequestException as e:
-        print(f"Network error: {e}")
-    except OSError as e:
-        print(f"File system error: {e}")
+        all_images = get_image_files(image_dir)
+        print("Все изображения в директории:")
+        for img in all_images:
+            print(f" - {img.name}")
 
+        specific_image = get_image_files(image_dir, "example.jpg")
+        print(f"\nНайдено конкретное изображение: {specific_image}")
+
+        random_image = get_random_image(image_dir)
+        print(f"\nСлучайное изображение: {random_image.name}")
+
+    except (FileNotFoundError, NotADirectoryError, ValueError) as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
