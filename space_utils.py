@@ -34,25 +34,3 @@ def get_random_image(directory: Path) -> Optional[Path]:
     if not images:
         raise ValueError(f"В директории {directory} нет подходящих изображений.")
     return random.choice(images)
-
-def main():
-    try:
-        image_dir = Path("images")
-
-        all_images = get_image_files(image_dir)
-        print("Все изображения в директории:")
-        for img in all_images:
-            print(f" - {img.name}")
-
-        specific_image = get_image_files(image_dir, "example.jpg")
-        print(f"\nНайдено конкретное изображение: {specific_image}")
-
-        random_image = get_random_image(image_dir)
-        print(f"\nСлучайное изображение: {random_image.name}")
-
-    except (FileNotFoundError, NotADirectoryError, ValueError) as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
