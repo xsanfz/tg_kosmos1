@@ -8,7 +8,6 @@ from space_utils import download_image, get_nasa_api_key
 
 
 def fetch_epic_images(api_key: str, max_images: int = 10) -> List[Dict]:
-    """Fetch available EPIC Earth images data from NASA API."""
     api_endpoint = 'https://api.nasa.gov/EPIC/api/natural/images'
     response = requests.get(api_endpoint, params={'api_key': api_key}, timeout=15)
     response.raise_for_status()
@@ -16,7 +15,6 @@ def fetch_epic_images(api_key: str, max_images: int = 10) -> List[Dict]:
 
 
 def generate_epic_image_url(image: dict) -> str:
-    """Generate download URL for a specific EPIC image."""
     capture_date = datetime.strptime(image['date'], "%Y-%m-%d %H:%M:%S")
     return (
         f"https://api.nasa.gov/EPIC/archive/natural/"
