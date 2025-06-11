@@ -2,35 +2,35 @@ from pathlib import Path
 from typing import List, Optional, Union
 import random
 import sys
+import requests
+import os
+from urllib.parse import urlparse
+from error_handlers import handle_directory_error, handle_download_error, handle_config_error
+from env_utils import get_env_variable
+from image_tools import get_image_files
 
-def get_image_files(
-        directory: Path,
-        photo_name: Optional[str] = None,
-        extensions: Optional[List[str]] = None
-) -> Union[Optional[Path], List[Path]]:
-    if not directory.exists():
-        raise FileNotFoundError(f"Директория {directory} не существует.")
-    if not directory.is_dir():
-        raise NotADirectoryError(f"{directory} не является директорией.")
 
-    if extensions is None:
-        extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+def download_image(url: str, filepath: Path) -> bool:
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
 
-    if photo_name:
-        image_path = directory / photo_name
-        if not image_path.exists():
-            raise FileNotFoundError(f"Изображение {image_path} не найдено.")
-        return image_path
+        with open(filepath, 'wb') as f:
+            f.write(response.content)
+        return True
+    except requests.RequestException as e:
+        handle_download_error(f"Не удалось загрузить изображение с {url}: {str(e)}")
+        return False
+    except IOError as e:
+        handle_download_error(f"Не удалось сохранить изображение в {filepath}: {str(e)}")
+        return False
 
-    images = [
-        file for file in directory.iterdir()
-        if file.is_file() and file.suffix.lower() in extensions
-    ]
 
-    return images
+def get_nasa_api_key() -> str:
+    return get_env_variable('NASA_API_KEY')
 
-def get_random_image(directory: Path) -> Optional[Path]:
-    images = get_image_files(directory)
-    if not images:
-        raise ValueError(f"В директории {directory} нет подходящих изображений.")
-    return random.choice(images)
+
+def get_file_extension_from_url(url: str) -> str:
+    parsed = urlparse(url)
+    path = parsed.path
+    return os.path.splitext(path)[1]

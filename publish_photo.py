@@ -1,57 +1,47 @@
 import argparse
-import asyncio
-import os
+import logging
+import random
+import sys
 from pathlib import Path
-from typing import Optional
 
-from dotenv import load_dotenv
 from telegram import Bot
+from telegram import error as telegram_error
 
-from telegram_tools import get_telegram_config, publish_photo
-from image_utils import get_image_files, get_random_image
+from telegram_tools import publish_photo
+from image_tools import get_image_files
+from env_utils import get_env_variable
 
-
-async def main_async():
-    parser = argparse.ArgumentParser(
-        description='Публикация фотографии в Telegram-канал'
-    )
-    parser.add_argument(
-        '--directory',
-        type=str,
-        default='images',
-        help='Директория с изображениями'
-    )
-    parser.add_argument(
-        '--photo',
-        type=str,
-        help='Конкретное фото для публикации (если не указано - случайное)'
-    )
-    args = parser.parse_args()
-
-    telegram_token, telegram_channel = get_telegram_config()
-    if not telegram_token or not telegram_channel:
-        raise ValueError("Необходимо указать TELEGRAM_TOKEN и TELEGRAM_CHANNEL в .env файле")
-
-    directory = Path(args.directory)
-    photo_path = get_image_files(directory, args.photo) if args.photo else get_random_image(directory)
-    if not photo_path:
-        raise FileNotFoundError(f"Изображение не найдено в директории {directory}")
-
-    bot = Bot(token=telegram_token)
-    success = await publish_photo(bot, telegram_channel, photo_path)
-    if success:
-        print(f"Успешно опубликовано: {photo_path.name}")
+logger = logging.getLogger(__name__)
 
 
 def main():
-    load_dotenv()
+    parser = argparse.ArgumentParser(description='Publish photo to Telegram channel')
+    parser.add_argument('--photo', type=str, help='Specific photo to publish')
+    args = parser.parse_args()
+
+    directory = Path("images")
+    images = get_image_files(directory)
+    if not images:
+        logger.error("No images found in directory")
+        sys.exit(1)
+
+    photo_path = get_image_files(directory, args.photo) if args.photo else random.choice(images)
+    if not photo_path:
+        logger.error("Photo not found")
+        sys.exit(1)
+
+    bot = Bot(token=get_env_variable('TELEGRAM_TOKEN'))
+    channel_id = get_env_variable('TELEGRAM_CHANNEL')
 
     try:
-        asyncio.run(main_async())
-    except ValueError as e:
-        print(f"Ошибка конфигурации: {str(e)}")
-    except FileNotFoundError as e:
-        print(f"Ошибка поиска изображения: {str(e)}")
+        bot.send_photo(chat_id=channel_id, photo=open(photo_path, 'rb'))
+        logger.info(f"Published: {photo_path.name}")
+    except telegram_error.TelegramError as e:
+        logger.error(f"Failed to publish photo: {e}")
+        sys.exit(1)
+    except OSError as e:
+        logger.error(f"Failed to read image file: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
