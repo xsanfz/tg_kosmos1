@@ -12,17 +12,6 @@ from image_tools import get_image_files
 
 
 def download_image(url: str, filepath: Path, timeout: int = 10) -> bool:
-    """
-    Download an image from URL and save it to a file.
-    
-    Args:
-        url: URL of the image to download
-        filepath: Path where to save the image
-        timeout: Request timeout in seconds
-        
-    Returns:
-        bool: True if download was successful, False otherwise
-    """
     response = requests.get(url, stream=True, timeout=timeout)
     response.raise_for_status()
 

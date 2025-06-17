@@ -16,14 +16,8 @@ from error_handlers import (
     handle_connection_error
 )
 
-NASA_API_TIMEOUT_SECONDS = 15
-NASA_API_MAX_IMAGES = 30
-NASA_API_DEFAULT_IMAGES = 5
-NASA_API_DATE_FORMAT = '%Y-%m-%d'
-NASA_API_OUTPUT_DATE_FORMAT = '%Y%m%d'
 
-
-def fetch_apod_images(api_key: str, image_count: int = NASA_API_DEFAULT_IMAGES) -> List[Dict]:
+def fetch_apod_images(api_key: str, image_count: int, timeout: int) -> List[Dict]:
     response = requests.get(
         'https://api.nasa.gov/planetary/apod',
         params={
@@ -31,7 +25,7 @@ def fetch_apod_images(api_key: str, image_count: int = NASA_API_DEFAULT_IMAGES) 
             'count': image_count,
             'thumbs': True
         },
-        timeout=NASA_API_TIMEOUT_SECONDS
+        timeout=timeout
     )
     response.raise_for_status()
 
@@ -46,11 +40,13 @@ def create_apod_filename(
         output_dir: Path,
         apod_date: str,
         image_url: str,
-        fallback_index: int
+        fallback_index: int,
+        date_format: str,
+        output_date_format: str
 ) -> Path:
     try:
-        publication_date = datetime.strptime(apod_date, NASA_API_DATE_FORMAT)
-        date_prefix = publication_date.strftime(NASA_API_OUTPUT_DATE_FORMAT)
+        publication_date = datetime.strptime(apod_date, date_format)
+        date_prefix = publication_date.strftime(output_date_format)
     except ValueError:
         date_prefix = f"no_date_{fallback_index}"
 
@@ -62,6 +58,13 @@ def create_apod_filename(
 
 
 def main():
+    # API and request constants
+    NASA_API_TIMEOUT_SECONDS = 15
+    NASA_API_MAX_IMAGES = 30
+    NASA_API_DEFAULT_IMAGES = 5
+    NASA_API_DATE_FORMAT = '%Y-%m-%d'
+    NASA_API_OUTPUT_DATE_FORMAT = '%Y%m%d'
+
     parser = argparse.ArgumentParser(
         description='Download Astronomy Picture of Day (APOD) from NASA',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -86,7 +89,11 @@ def main():
             return
 
         try:
-            apod_images = fetch_apod_images(api_key, min(args.count, NASA_API_MAX_IMAGES))
+            apod_images = fetch_apod_images(
+                api_key,
+                min(args.count, NASA_API_MAX_IMAGES),
+                NASA_API_TIMEOUT_SECONDS
+            )
         except HTTPError as error:
             handle_nasa_api_error(f"{error.response.status_code}")
             return
@@ -119,7 +126,9 @@ def main():
                     output_dir=output_dir,
                     apod_date=apod_entry.get('date', ''),
                     image_url=image_url,
-                    fallback_index=index
+                    fallback_index=index,
+                    date_format=NASA_API_DATE_FORMAT,
+                    output_date_format=NASA_API_OUTPUT_DATE_FORMAT
                 )
             except ValueError as error:
                 print(f"Ошибка при создании имени файла для элемента {index}: {error}")
