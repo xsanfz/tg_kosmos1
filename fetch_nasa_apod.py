@@ -16,7 +16,6 @@ from error_handlers import (
     handle_connection_error
 )
 
-# API and request constants
 NASA_API_TIMEOUT_SECONDS = 15
 NASA_API_MAX_IMAGES = 30
 NASA_API_DEFAULT_IMAGES = 5
@@ -97,9 +96,6 @@ def main():
         except RequestException as error:
             handle_connection_error(str(error))
             return
-        except ValueError as error:
-            handle_data_format_error(str(error))
-            return
 
         try:
             output_dir = Path(args.output)
@@ -141,8 +137,11 @@ def main():
 
         print(f"\nЗавершено. Успешно загружено {success_count} из {len(apod_images)} изображений")
 
-    except Exception as e:
-        print(f"Неожиданная ошибка: {str(e)}")
+    except OSError as e:
+        print(f"Ошибка при работе с файловой системой: {str(e)}")
+        return
+    except RuntimeError as e:
+        print(f"Ошибка выполнения: {str(e)}")
         return
 
 

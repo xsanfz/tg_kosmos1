@@ -62,9 +62,6 @@ def main():
         except RequestException as error:
             handle_connection_error(str(error))
             return
-        except ValueError as error:
-            handle_data_format_error(str(error))
-            return
 
         print(f"Найдено {len(flickr_image_urls)} изображений. Загружаем...")
 
@@ -85,8 +82,11 @@ def main():
 
         print(f"\nРезультаты: {success_count} успешно, {len(flickr_image_urls) - success_count} не удалось")
 
-    except Exception as e:
-        print(f"Неожиданная ошибка: {str(e)}")
+    except OSError as e:
+        print(f"Ошибка при работе с файловой системой: {str(e)}")
+        return
+    except RuntimeError as e:
+        print(f"Ошибка выполнения: {str(e)}")
         return
 
 
