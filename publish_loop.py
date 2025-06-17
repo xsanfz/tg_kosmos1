@@ -26,14 +26,6 @@ def configure_logging() -> None:
     )
 
 
-def get_telegram_bot_token() -> str:
-    return get_env_variable('TELEGRAM_TOKEN')
-
-
-def get_telegram_channel_id() -> str:
-    return get_env_variable('TELEGRAM_CHANNEL')
-
-
 def validate_image_directory(image_directory: Path) -> None:
     if not image_directory.exists():
         logger.error(f"Directory {image_directory} does not exist")
@@ -81,47 +73,61 @@ async def publish_images_periodically(
                     await publish_photo(bot, channel_id, image_path)
                     logger.info(f"Published: {image_path.name}")
                     break
-                except (telegram_error.TelegramError, OSError) as e:
-                    logger.warning(f"Failed to publish: {image_path.name} - {str(e)}")
+                except telegram_error.TelegramError as e:
+                    logger.warning(f"Telegram error while publishing {image_path.name}: {str(e)}")
+                except OSError as e:
+                    logger.warning(f"File system error while publishing {image_path.name}: {str(e)}")
 
             await asyncio.sleep(interval_seconds)
 
 
 async def async_main() -> None:
-    try:
-        parser = argparse.ArgumentParser(
-            description='Publish images to Telegram channel'
-        )
-        parser.add_argument(
-            '--directory',
-            type=str,
-            default='images',
-            help='Directory with images (default: images)'
-        )
-        parser.add_argument(
-            '--interval',
-            type=int,
-            default=4,
-            help='Publication interval in hours (default: 4)'
-        )
-        args = parser.parse_args()
+    parser = argparse.ArgumentParser(
+        description='Publish images to Telegram channel'
+    )
+    parser.add_argument(
+        '--directory',
+        type=str,
+        default='images',
+        help='Directory with images (default: images)'
+    )
+    parser.add_argument(
+        '--interval',
+        type=int,
+        default=4,
+        help='Publication interval in hours (default: 4)'
+    )
+    args = parser.parse_args()
 
+    try:
         image_directory = Path(args.directory)
         validate_image_directory(image_directory)
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+        logger.error(f"Directory validation error: {str(e)}")
+        sys.exit(1)
 
-        bot = Bot(token=get_telegram_bot_token())
-        channel_id = get_telegram_channel_id()
+    try:
+        bot = Bot(token=get_env_variable('TELEGRAM_TOKEN'))
+        channel_id = get_env_variable('TELEGRAM_CHANNEL')
+    except ValueError as e:
+        logger.error(f"Configuration error: {str(e)}")
+        sys.exit(1)
 
+    try:
         await verify_bot_has_channel_access(bot, channel_id)
+    except ValueError as e:
+        logger.error(f"Bot access verification error: {str(e)}")
+        sys.exit(1)
 
-        logger.info(f"Bot started. Publishing every {args.interval} hours from {image_directory}")
+    logger.info(f"Bot started. Publishing every {args.interval} hours from {image_directory}")
+    try:
         await publish_images_periodically(bot, channel_id, image_directory, args.interval)
-    except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as e:
-        logger.error(str(e))
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        sys.exit(1)
+    except asyncio.CancelledError:
+        logger.info("Publication loop was cancelled")
+        sys.exit(0)
+    except KeyboardInterrupt:
+        logger.info("Publication loop was interrupted by user")
+        sys.exit(0)
 
 
 def main() -> None:
